@@ -1,0 +1,8 @@
+# .gitignore — local configuration and generated artifacts.
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/
