@@ -2,6 +2,8 @@
 
 Turn YouTube captions into timestamp-free text to read, copy, or download, with the source video link included.
 
+![Screenshot](public/screenshot1.png)
+
 ## Get captions from YouTube
 
 **Requires a Google account with permission to edit the videoâ€”not just watch it.**
@@ -30,6 +32,8 @@ Subtitle timestamps, cue numbers, and markup are removed; spoken times such as â
 - Imported files: processed entirely in your browser, never uploaded or stored on a server.
 - Reload or disconnect: clears the current transcript and sign-in session; downloaded files remain.
 - Full privacy details and Google access-revocation link: **Privacy & terms**.
+
+![Screenshot](public/screenshot2.png)
 
 ## Having trouble?
 
