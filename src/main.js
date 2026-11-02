@@ -40,13 +40,14 @@ el('app').innerHTML = `
             <div id="account" class="account" hidden><span data-i18n="connected"></span><button type="button" id="disconnect" class="text-button" data-i18n="disconnect"></button></div>
           </div>
           <div id="import-fields" hidden>
-            <p class="note" data-i18n="importNote"></p><label for="video-title" data-i18n="titleLabel"></label><input id="video-title" maxlength="200" data-placeholder="titlePlaceholder">
+            <p id="import-note" class="note" data-i18n="importNote"></p><label for="video-title" data-i18n="titleLabel"></label><input id="video-title" maxlength="200" data-placeholder="titlePlaceholder">
             <label for="file" data-i18n="fileLabel"></label><div class="file-picker"><div class="file-control"><span class="file-button" data-i18n="chooseFile" aria-hidden="true"></span><span id="file-name" aria-hidden="true"></span><input id="file" type="file" accept=".srt,.vtt" aria-describedby="file-hint" data-aria="chooseFile"></div><p id="file-hint" data-i18n="fileHint"></p></div>
           </div>
           <button id="submit" class="primary full" type="submit"><span id="submit-label"></span><span aria-hidden="true">↗</span></button>
         </form>
         <div id="tracks" class="track-picker" hidden><label for="track" data-i18n="language"></label><select id="track"></select><button id="retrieve" class="secondary full" data-i18n="getTranscript"></button></div>
         <div class="status-area"><span id="status-dot" aria-hidden="true"></span><p id="status" role="status" aria-live="polite" aria-atomic="true"></p><button id="cancel" class="text-button" data-i18n="cancel" hidden></button></div>
+        <div id="import-fallback" class="import-fallback" hidden><p id="import-fallback-note" data-i18n="importFallback"></p><button id="import-fallback-button" type="button" class="primary full" data-i18n="importTab" aria-describedby="import-fallback-note"></button></div>
       </div>
       <div class="result-panel" id="result-panel" aria-busy="false">
         <div class="section-mark">02 / <span data-i18n="transcriptLabel"></span></div>
@@ -81,6 +82,9 @@ function render() {
   const imported = state.mode === 'import';
   el('youtube-fields').hidden = imported;
   el('import-fields').hidden = !imported;
+  el('url').setAttribute('aria-describedby', imported ? 'import-note status' : 'access-note status');
+  el('import-fallback').hidden = imported || !['forbidden', 'authDenied'].includes(state.status);
+  el('import-fallback-button').disabled = state.busy;
   el('youtube-tab').setAttribute('aria-pressed', String(!imported));
   el('import-tab').setAttribute('aria-pressed', String(imported));
   el('submit-label').textContent = t(imported ? 'importAction' : 'fetch');
@@ -132,7 +136,17 @@ for (const lang of ['en', 'my']) el(lang).addEventListener('click', () => {
   try { localStorage.setItem('pigeon-language', locale); } catch { /* The application remains usable without storage. */ }
   render();
 });
-for (const mode of ['youtube', 'import']) el(`${mode}-tab`).addEventListener('click', () => { state.mode = mode; resetResult(); status('idle'); });
+// Preserve source attribution when switching from denied API access to local import.
+function switchMode(mode) {
+  state.mode = mode;
+  resetResult();
+  status(mode === 'import' ? 'importReady' : 'idle');
+}
+for (const mode of ['youtube', 'import']) el(`${mode}-tab`).addEventListener('click', () => switchMode(mode));
+el('import-fallback-button').addEventListener('click', () => {
+  switchMode('import');
+  el(videoIdFromUrl(el('url').value) ? 'file' : 'url').focus();
+});
 el('url').addEventListener('input', () => { resetResult(); el('url').removeAttribute('aria-invalid'); status('cleared'); });
 el('file').addEventListener('change', () => { resetResult(); status('idle'); });
 el('video-title').addEventListener('input', () => { if (state.result) { state.result.title = el('video-title').value.trim(); render(); } });
@@ -153,7 +167,7 @@ el('form').addEventListener('submit', event => {
   resetResult();
   const url = `https://www.youtube.com/watch?v=${id}`;
   if (state.mode === 'import') {
-    perform('downloading', async () => {
+    perform('processingFile', async () => {
       const file = el('file').files[0];
       if (!file) throw new Error('noFile');
       if (!['srt', 'vtt'].includes(file.name.split('.').pop().toLowerCase())) throw new Error('invalidFile');

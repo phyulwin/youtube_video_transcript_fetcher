@@ -69,6 +69,9 @@ input[type='checkbox'] { accent-color: #20201e; width: 16px; height: 16px; flex-
 .text-button { border: 0; background: transparent; text-decoration: underline; text-underline-offset: 3px; font-size: 11px; padding: 10px 0; color: var(--muted); }
 .track-picker { border-top: 1px solid var(--line); padding-top: 20px; margin-top: 22px; }
 .status-area { display: flex; gap: 8px; align-items: baseline; margin-top: 16px; }
+/* A full-width recovery action makes local import easy to find after access denial. */
+.import-fallback { margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #f7f7f2; }
+.import-fallback p { margin: 0; font-size: 12px; line-height: 1.8; }
 #status { font-size: 12px; line-height: 1.7; color: var(--muted); margin: 0; flex: 1; }
 #status.error { color: #20201e; font-weight: 600; }
 #status-dot { width: 5px; height: 5px; border-radius: 50%; background: #a6a69a; flex-shrink: 0; }

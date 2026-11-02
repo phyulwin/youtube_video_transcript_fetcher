@@ -155,6 +155,93 @@ for (const [status, reason, key] of [[403, 'forbidden', 'forbidden'], [403, 'quo
   });
 }
 
+// Denials at either official endpoint offer a localized, URL-preserving import path.
+for (const phase of ['list', 'download']) {
+  test(`access denial during ${phase} offers local import`, async ({ page }) => {
+    await identity(page);
+    let apiRequests = 0;
+    await page.route('https://www.googleapis.com/youtube/v3/**', route => {
+      apiRequests++;
+      if (phase === 'download' && new URL(route.request().url()).pathname.endsWith('/captions')) {
+        return route.fulfill({ json: { items: [{ id: 'track', snippet: { language: 'en', status: 'serving' } }] } });
+      }
+      return route.fulfill({ status: 403, json: { error: { errors: [{ reason: 'forbidden' }] } } });
+    });
+    await page.goto('/');
+    await authorize(page);
+    await page.locator('#url').fill(sourceUrl);
+    await page.locator('#submit').click();
+    if (phase === 'download') await page.locator('#retrieve').click();
+    await expect(page.locator('#status')).toHaveText(messages.en.forbidden);
+    await expect(page.locator('#import-fallback-button')).toHaveText(messages.en.importTab);
+    await page.locator('#my').click();
+    await expect(page.locator('#status')).toHaveText(messages.my.forbidden);
+    await expect(page.locator('#import-fallback-note')).toHaveText(messages.my.importFallback);
+    await expect(page.locator('#import-fallback-button')).toHaveText(messages.my.importTab);
+    await page.locator('#import-fallback-button').click();
+    await expect(page.locator('#file')).toBeFocused();
+    await expect(page.locator('#url')).toHaveValue(sourceUrl);
+    await expect(page.locator('#import-fallback')).toBeHidden();
+    const previousRequests = apiRequests;
+    await page.locator('#file').setInputFiles({ name: 'authorized.vtt', mimeType: 'text/vtt', buffer: Buffer.from(caption) });
+    await page.locator('#submit').click();
+    await expect(page.locator('#transcript')).toHaveValue('Hello & welcome.\nမင်္ဂလာပါ');
+    expect(apiRequests).toBe(previousRequests);
+  });
+}
+
+// Offline, signed-out import verifies file processing and downloads require no server.
+for (const extension of ['srt', 'vtt']) {
+  test(`offline ${extension} import preserves content and exports UTF-8`, async ({ page, context }) => {
+    await identity(page);
+    await page.goto('/');
+    await expect(page.locator('#account')).toBeHidden();
+    await context.setOffline(true);
+    const requests = [];
+    page.on('request', request => requests.push(request.url()));
+    await page.locator('#import-tab').click();
+    await page.locator('#url').fill(sourceUrl);
+    await page.locator('#video-title').fill('မူရင်းဗီဒီယို');
+    const timing = extension === 'srt' ? '00:00:01,000 --> 00:00:02,000' : '00:00.000 --> 00:02.000';
+    const source = `${extension === 'vtt' ? 'WEBVTT\n\n' : ''}1\n${timing}\n<b>Meet at 10:30.</b> မင်္ဂလာပါ\n\n2\n${timing}\nMeet at 10:30. မင်္ဂလာပါ\n`;
+    const expected = 'Meet at 10:30. မင်္ဂလာပါ\nMeet at 10:30. မင်္ဂလာပါ';
+    await page.locator('#file').setInputFiles({ name: `authorized.${extension}`, mimeType: 'text/plain', buffer: Buffer.from(source) });
+    await page.locator('#submit').click();
+    await expect(page.locator('#transcript')).toHaveValue(expected);
+    const downloadEvent = page.waitForEvent('download');
+    await page.locator('#download').click();
+    const download = await downloadEvent;
+    const content = await readFile(await download.path(), 'utf8');
+    expect(content).toContain(expected);
+    expect(content).toContain('မူရင်းဗီဒီယို');
+    expect(content).toContain('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(content).not.toContain('-->');
+    expect(content).not.toContain('<b>');
+    expect(requests).toEqual([]);
+    expect(await page.evaluate(() => Object.keys(localStorage).every(key => key === 'pigeon-language') && sessionStorage.length === 0)).toBe(true);
+  });
+}
+
+// Import validation provides actionable errors in both languages before reading a file.
+test('import rejects missing, unsupported, and oversized files in both languages', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#import-tab').click();
+  await page.locator('#url').fill(sourceUrl);
+  for (const [name, buffer, key] of [
+    [null, null, 'noFile'],
+    ['captions.txt', Buffer.from(caption), 'invalidFile'],
+    ['captions.srt', Buffer.alloc(2 * 1024 * 1024 + 1), 'largeFile'],
+  ]) {
+    if (name) await page.locator('#file').setInputFiles({ name, mimeType: 'text/plain', buffer });
+    await page.locator('#en').click();
+    await page.locator('#submit').click();
+    await expect(page.locator('#status')).toHaveText(messages.en[key]);
+    await page.locator('#my').click();
+    await expect(page.locator('#status')).toHaveText(messages.my[key]);
+    await expect(page.locator('#result')).toBeHidden();
+  }
+});
+
 // Verify small screens and reduced-motion preferences across both writing systems.
 test('mobile layout and reduced motion', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
