@@ -2,6 +2,10 @@
 
 Turn YouTube captions into timestamp-free text to read, copy, or download, with the source video link included.
 
+[Access the live application here.](https://phyulwin.github.io/youtube_video_transcript_fetcher/)
+
+Please note: The application will remain available for 30 days, after which the live deployment will be shut down to reserve API bills for another project.
+
 ![Screenshot](public/screenshot1.png)
 
 ## Get captions from YouTube
